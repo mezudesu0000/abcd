@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { Client, GatewayIntentBits, Collection } from 'discord.js';
 import fs from 'fs';
-import gemimi from 'gemimi';
+import axios from 'axios';
 
 const client = new Client({
     intents: [
@@ -45,9 +45,27 @@ client.on('messageCreate', msg => {
 
 // AI応答（chatsetで指定されたチャンネルのみ）
 const chatChannels = new Map(); // チャンネルIDを保存
+
+async function askAI(question) {
+    try {
+        const res = await axios.post('https://gemimi-api.example.com/ask', {
+            question: question
+        }, {
+            headers: {
+                'Authorization': `Bearer ${process.env.GEMIMI_API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        return res.data.answer;
+    } catch (err) {
+        console.error('AI API Error:', err);
+        return 'AI応答中にエラーが発生しました';
+    }
+}
+
 client.on('messageCreate', async msg => {
     if (chatChannels.has(msg.channel.id) && !msg.author.bot) {
-        const reply = await gemimi.ask(msg.content, process.env.GEMIMI_API_KEY);
+        const reply = await askAI(msg.content);
         msg.reply(reply);
     }
 });
