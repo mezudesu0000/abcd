@@ -1,7 +1,7 @@
 {
   "name": "discord-multi-bot",
   "version": "1.0.0",
-  "description": "Discord Bot with multiple slash commands, AI chat, and optional web server",
+  "description": "Discord Bot with slash commands, AI chat, and optional web server",
   "main": "index.js",
   "type": "module",
   "scripts": {
