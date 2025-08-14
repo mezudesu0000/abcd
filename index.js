@@ -1,7 +1,8 @@
 import 'dotenv/config';
-import { Client, GatewayIntentBits, Collection } from 'discord.js';
-import fs from 'fs';
+import { Client, GatewayIntentBits, SlashCommandBuilder, Routes } from 'discord.js';
+import { REST } from '@discordjs/rest';
 import axios from 'axios';
+import QRCode from 'qrcode';
 
 const client = new Client({
     intents: [
@@ -12,62 +13,141 @@ const client = new Client({
     ]
 });
 
-client.commands = new Collection();
+const TOKEN = process.env.TOKEN;
+const GEMIMI_API_KEY = process.env.GEMIMI_API_KEY;
 
-// commandsフォルダの読み込み
-const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
-for (const file of commandFiles) {
-    const command = await import(`./commands/${file}`);
-    client.commands.set(command.default.data.name, command.default);
-}
+// ===== スラッシュコマンド定義 =====
+const commands = [
+    new SlashCommandBuilder().setName('ping').setDescription('Bot動作確認'),
+    new SlashCommandBuilder().setName('ban').setDescription('ユーザーBAN')
+        .addUserOption(option => option.setName('target').setDescription('対象').setRequired(true)),
+    new SlashCommandBuilder().setName('kick').setDescription('ユーザーキック')
+        .addUserOption(option => option.setName('target').setDescription('対象').setRequired(true)),
+    new SlashCommandBuilder().setName('clear').setDescription('メッセージ削除')
+        .addIntegerOption(option => option.setName('amount').setDescription('削除数').setRequired(true)),
+    new SlashCommandBuilder().setName('serverinfo').setDescription('サーバー情報'),
+    new SlashCommandBuilder().setName('userinfo').setDescription('ユーザー情報')
+        .addUserOption(option => option.setName('target').setDescription('対象').setRequired(true)),
+    new SlashCommandBuilder().setName('timeout').setDescription('タイムアウト')
+        .addUserOption(option => option.setName('target').setDescription('対象').setRequired(true))
+        .addIntegerOption(option => option.setName('seconds').setDescription('秒数').setRequired(true)),
+    new SlashCommandBuilder().setName('ipinfo').setDescription('IP情報取得')
+        .addStringOption(option => option.setName('ip').setDescription('IPアドレス').setRequired(true)),
+    new SlashCommandBuilder().setName('qrcode').setDescription('QRコード生成')
+        .addStringOption(option => option.setName('url').setDescription('URL').setRequired(true)),
+    new SlashCommandBuilder().setName('chatset').setDescription('AI応答チャンネル設定')
+        .addChannelOption(option => option.setName('channel').setDescription('チャンネル').setRequired(true))
+];
 
-// スラッシュコマンド実行
+// ===== コマンド登録 =====
+const rest = new REST({ version: '10' }).setToken(TOKEN);
+
+(async () => {
+    try {
+        console.log('Registering commands...');
+        await rest.put(
+            Routes.applicationCommands(client.user?.id || '0'),
+            { body: commands }
+        );
+        console.log('Commands registered');
+    } catch (err) {
+        console.error(err);
+    }
+})();
+
+// ===== AI応答チャンネル管理 =====
+const chatChannels = new Set();
+
+// ===== イベント =====
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
-    const command = client.commands.get(interaction.commandName);
-    if (!command) return;
+    const { commandName } = interaction;
 
-    try {
-        await command.execute(interaction, client);
-    } catch (error) {
-        console.error(error);
-        await interaction.reply({ content: 'エラーが発生しました。', ephemeral: true });
+    if (commandName === 'ping') return interaction.reply('Pong!');
+    if (commandName === 'ban') {
+        const user = interaction.options.getUser('target');
+        const member = interaction.guild.members.cache.get(user.id);
+        if (!member) return interaction.reply('メンバーが見つかりません');
+        await member.ban();
+        return interaction.reply(`${user.tag} をBANしました`);
+    }
+    if (commandName === 'kick') {
+        const user = interaction.options.getUser('target');
+        const member = interaction.guild.members.cache.get(user.id);
+        if (!member) return interaction.reply('メンバーが見つかりません');
+        await member.kick();
+        return interaction.reply(`${user.tag} をキックしました`);
+    }
+    if (commandName === 'clear') {
+        const amount = interaction.options.getInteger('amount');
+        const messages = await interaction.channel.messages.fetch({ limit: amount });
+        await interaction.channel.bulkDelete(messages);
+        return interaction.reply({ content: `${amount}件削除`, ephemeral: true });
+    }
+    if (commandName === 'serverinfo') {
+        const g = interaction.guild;
+        return interaction.reply(`サーバー名: ${g.name}\nメンバー数: ${g.memberCount}`);
+    }
+    if (commandName === 'userinfo') {
+        const user = interaction.options.getUser('target');
+        return interaction.reply(`ユーザー名: ${user.tag}\nID: ${user.id}`);
+    }
+    if (commandName === 'timeout') {
+        const user = interaction.options.getUser('target');
+        const seconds = interaction.options.getInteger('seconds');
+        const member = interaction.guild.members.cache.get(user.id);
+        if (!member) return interaction.reply('メンバーが見つかりません');
+        await member.timeout(seconds * 1000);
+        return interaction.reply(`${user.tag} を ${seconds}秒タイムアウト`);
+    }
+    if (commandName === 'ipinfo') {
+        const ip = interaction.options.getString('ip');
+        try {
+            const res = await axios.get(`http://ip-api.com/json/${ip}`);
+            const data = res.data;
+            return interaction.reply(`IP: ${data.query}\n国: ${data.country}\n都市: ${data.city}\nISP: ${data.isp}`);
+        } catch (err) {
+            return interaction.reply('IP情報取得失敗');
+        }
+    }
+    if (commandName === 'qrcode') {
+        const url = interaction.options.getString('url');
+        try {
+            const qr = await QRCode.toDataURL(url);
+            return interaction.reply(qr);
+        } catch (err) {
+            return interaction.reply('QRコード作成失敗');
+        }
+    }
+    if (commandName === 'chatset') {
+        const channel = interaction.options.getChannel('channel');
+        chatChannels.add(channel.id);
+        return interaction.reply(`${channel} をAI応答チャンネルに設定しました`);
     }
 });
 
-// メッセージ監視（わらび→なんやねん）
+// わらび → なんやねん
 client.on('messageCreate', msg => {
-    if (msg.content.includes('わらび')) {
-        msg.reply('なんやねん');
-    }
-});
+    if (msg.content.includes('わらび')) msg.reply('なんやねん');
 
-// AI応答（chatsetで指定されたチャンネルのみ）
-const chatChannels = new Map(); // チャンネルIDを保存
-
-async function askAI(question) {
-    try {
-        const res = await axios.post('https://gemimi-api.example.com/ask', {
-            question: question
-        }, {
-            headers: {
-                'Authorization': `Bearer ${process.env.GEMIMI_API_KEY}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        return res.data.answer;
-    } catch (err) {
-        console.error('AI API Error:', err);
-        return 'AI応答中にエラーが発生しました';
-    }
-}
-
-client.on('messageCreate', async msg => {
     if (chatChannels.has(msg.channel.id) && !msg.author.bot) {
-        const reply = await askAI(msg.content);
-        msg.reply(reply);
+        (async () => {
+            try {
+                const res = await axios.post('https://gemimi-api.example.com/ask', {
+                    question: msg.content
+                }, {
+                    headers: {
+                        'Authorization': `Bearer ${GEMIMI_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                msg.reply(res.data.answer);
+            } catch {
+                msg.reply('AI応答失敗');
+            }
+        })();
     }
 });
 
-client.login(process.env.TOKEN);
+client.login(TOKEN);
