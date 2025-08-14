@@ -5,7 +5,7 @@ import axios from 'axios';
 import QRCode from 'qrcode';
 import express from 'express';
 
-// ===== Render用Webサーバー =====
+// ===== Render用Webサーバー（任意） =====
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Bot is running!'));
@@ -66,6 +66,7 @@ client.on('interactionCreate', async interaction => {
     const { commandName } = interaction;
 
     if (commandName === 'ping') return interaction.reply('Pong!');
+
     if (commandName === 'ban') {
         const user = interaction.options.getUser('target');
         const member = interaction.guild.members.cache.get(user.id);
@@ -73,6 +74,7 @@ client.on('interactionCreate', async interaction => {
         await member.ban();
         return interaction.reply(`${user.tag} をBANしました`);
     }
+
     if (commandName === 'kick') {
         const user = interaction.options.getUser('target');
         const member = interaction.guild.members.cache.get(user.id);
@@ -80,20 +82,24 @@ client.on('interactionCreate', async interaction => {
         await member.kick();
         return interaction.reply(`${user.tag} をキックしました`);
     }
+
     if (commandName === 'clear') {
         const amount = interaction.options.getInteger('amount');
         const messages = await interaction.channel.messages.fetch({ limit: amount });
         await interaction.channel.bulkDelete(messages);
         return interaction.reply({ content: `${amount}件削除`, ephemeral: true });
     }
+
     if (commandName === 'serverinfo') {
         const g = interaction.guild;
         return interaction.reply(`サーバー名: ${g.name}\nメンバー数: ${g.memberCount}`);
     }
+
     if (commandName === 'userinfo') {
         const user = interaction.options.getUser('target');
         return interaction.reply(`ユーザー名: ${user.tag}\nID: ${user.id}`);
     }
+
     if (commandName === 'timeout') {
         const user = interaction.options.getUser('target');
         const seconds = interaction.options.getInteger('seconds');
@@ -102,6 +108,7 @@ client.on('interactionCreate', async interaction => {
         await member.timeout(seconds * 1000);
         return interaction.reply(`${user.tag} を ${seconds}秒タイムアウト`);
     }
+
     if (commandName === 'ipinfo') {
         const ip = interaction.options.getString('ip');
         try {
@@ -112,6 +119,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply('IP情報取得失敗');
         }
     }
+
     if (commandName === 'qrcode') {
         const url = interaction.options.getString('url');
         try {
@@ -121,6 +129,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply('QRコード作成失敗');
         }
     }
+
     if (commandName === 'chatset') {
         const channel = interaction.options.getChannel('channel');
         chatChannels.add(channel.id);
@@ -148,4 +157,5 @@ client.on('messageCreate', msg => {
     }
 });
 
-client.login(TOKEN);
+// ===== Botログイン =====
+client.login(TOKEN).then(() => console.log("Bot logged in!"));
