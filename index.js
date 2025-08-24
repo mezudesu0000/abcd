@@ -140,6 +140,9 @@ client.on('interactionCreate', async interaction => {
 // ===== メッセージ監視 =====
 client.on('messageCreate', msg => {
     if (msg.content.includes('わらび')) msg.reply('なんやねん');
+    
+    client.on('messageCreate', msg => {
+    if (msg.content.includes('けんたろう')) msg.reply('彼は白い空間に行く');
 
     if (chatChannels.has(msg.channel.id) && !msg.author.bot) {
         (async () => {
