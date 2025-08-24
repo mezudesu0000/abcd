@@ -141,8 +141,17 @@ client.on('interactionCreate', async interaction => {
 client.on('messageCreate', msg => {
     if (msg.content.includes('わらび')) msg.reply('なんやねん');
     
-    client.on('messageCreate', msg => {
+client.on('messageCreate', msg => {
     if (msg.content.includes('けんたろう')) msg.reply('彼は白い空間に行く');
+    
+client.on('messageCreate', msg => {
+    if (msg.content.includes('わらび')) msg.reply('やあ');
+    
+client.on('messageCreate', msg => {
+    if (msg.content.includes('けんたろう')) msg.reply('裁判に訴える');
+    
+client.on('messageCreate', msg => {
+    if (msg.content.includes('わらび')) msg.reply('なんやねん');
 
     if (chatChannels.has(msg.channel.id) && !msg.author.bot) {
         (async () => {
